@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game</title>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #111827;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .game-container {
+            text-align: center;
+        }
+
+        .score-board {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1rem;
+            color: #fff;
+        }
+
+        .score, .high-score {
+            text-align: center;
+        }
+
+        .score {
+            color: #4ade80;
+        }
+
+        .high-score {
+            color: #facc15;
+        }
+
+        .label {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            opacity: 0.9;
+        }
+
+        .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-top: 0.25rem;
+        }
+
+        canvas {
+            border: 4px solid #374151;
+            border-radius: 0.5rem;
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.75);
+            border-radius: 0.5rem;
+            color: white;
+            text-align: center;
+        }
+
+        .game-over h2 {
+            color: #ef4444;
+            font-size: 1.875rem;
+            margin-bottom: 1rem;
+        }
+
+        .pause h2 {
+            color: white;
+            font-size: 1.875rem;
+            margin: 0.5rem 0;
+        }
+
+        .pause p {
+            color: #9ca3af;
+            margin: 0;
+        }
+
+        button {
+            background: #22c55e;
+            color: white;
+            border: none;
+            padding: 0.5rem 1.5rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background: #16a34a;
+        }
+
+        .controls {
+            margin-top: 1rem;
+            color: #9ca3af;
+            font-size: 0.875rem;
+        }
+
+        .canvas-container {
+            position: relative;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="score-board">
+            <div class="score">
+                <div class="label">Score</div>
+                <div class="value" id="score">0</div>
+            </div>
+            <div class="high-score">
+                <div class="label">High Score</div>
+                <div class="value" id="highScore">0</div>
+            </div>
+        </div>
+        
+        <div class="canvas-container">
+            <canvas id="gameCanvas"></canvas>
+            <div id="gameOverOverlay" class="overlay game-over" style="display: none;">
+                <div>
+                    <h2>Game Over!</h2>
+                    <button onclick="resetGame()">Play Again</button>
+                </div>
+            </div>
+            <div id="pauseOverlay" class="overlay pause" style="display: none;">
+                <div>
+                    <h2>Paused</h2>
+                    <p>Press Space to resume</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            Use arrow keys to control the snake • Space to pause
+        </div>
+    </div>
+
+    <script>
+        const GRID_SIZE = 20;
+        const CELL_SIZE = 20;
+        const INITIAL_SPEED = 150;
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = GRID_SIZE * CELL_SIZE;
+        canvas.height = GRID_SIZE * CELL_SIZE;
+
+        let snake = [{ x: 10, y: 10 }];
+        let food = { x: 15, y: 15 };
+        let direction = 'right';
+        let gameOver = false;
+        let isPaused = false;
+        let score = 0;
+        let highScore = 0;
+        let gameLoop;
+
+        function drawGame() {
+            // Clear canvas
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw snake
+            ctx.fillStyle = '#4ade80';
+            snake.forEach(({ x, y }) => {
+                ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE - 1, CELL_SIZE - 1);
+            });
+
+            // Draw food
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(food.x * CELL_SIZE, food.y * CELL_SIZE, CELL_SIZE - 1, CELL_SIZE - 1);
+        }
+
+        function generateFood() {
+            food = {
+                x: Math.floor(Math.random() * GRID_SIZE),
+                y: Math.floor(Math.random() * GRID_SIZE)
+            };
+        }
+
+        function updateGame() {
+            if (gameOver || isPaused) return;
+
+            const head = { ...snake[0] };
+
+            switch (direction) {
+                case 'up': head.y--; break;
+                case 'down': head.y++; break;
+                case 'left': head.x--; break;
+                case 'right': head.x++; break;
+            }
+
+            // Check collision
+            if (
+                head.x < 0 || 
+                head.x >= GRID_SIZE || 
+                head.y < 0 || 
+                head.y >= GRID_SIZE ||
+                snake.some(segment => segment.x === head.x && segment.y === head.y)
+            ) {
+                gameOver = true;
+                document.getElementById('gameOverOverlay').style.display = 'flex';
+                if (score > highScore) {
+                    highScore = score;
+                    document.getElementById('highScore').textContent = highScore;
+                }
+                return;
+            }
+
+            snake.unshift(head);
+
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                document.getElementById('score').textContent = score;
+                generateFood();
+            } else {
+                snake.pop();
+            }
+
+            drawGame();
+        }
+
+        function resetGame() {
+            snake = [{ x: 10, y: 10 }];
+            direction = 'right';
+            gameOver = false;
+            isPaused = false;
+            score = 0;
+            document.getElementById('score').textContent = '0';
+            document.getElementById('gameOverOverlay').style.display = 'none';
+            document.getElementById('pauseOverlay').style.display = 'none';
+            generateFood();
+            drawGame();
+        }
+
+        function startGame() {
+            resetGame();
+            gameLoop = setInterval(updateGame, INITIAL_SPEED);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (!gameOver) {
+                    isPaused = !isPaused;
+                    document.getElementById('pauseOverlay').style.display = isPaused ? 'flex' : 'none';
+                }
+                return;
+            }
+
+            if (isPaused) return;
+
+            switch (e.key) {
+                case 'ArrowUp':
+                    if (direction !== 'down') direction = 'up';
+                    break;
+                case 'ArrowDown':
+                    if (direction !== 'up') direction = 'down';
+                    break;
+                case 'ArrowLeft':
+                    if (direction !== 'right') direction = 'left';
+                    break;
+                case 'ArrowRight':
+                    if (direction !== 'left') direction = 'right';
+                    break;
+            }
+        });
+
+        startGame();
+    </script>
+</body>
+</html>
